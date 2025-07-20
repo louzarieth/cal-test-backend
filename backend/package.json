@@ -1,0 +1,35 @@
+{
+  "name": "calendar-backend",
+  "version": "1.0.0",
+  "description": "Backend for Calendar Application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "db:init": "node scripts/init-db.js",
+    "db:sync": "node scripts/test-sync.js"
+  },
+  "dependencies": {
+    "@sendgrid/mail": "^8.1.5",
+    "@types/uuid": "^10.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.0",
+    "express": "^4.18.3",
+    "express-basic-auth": "^1.2.1",
+    "googleapis": "^100.0.0",
+    "moment-timezone": "^0.6.0",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "oauth-1.0a": "^2.2.6",
+    "sqlite3": "^5.1.7",
+    "twitter-api-v2": "^1.24.0",
+    "uuid": "^11.1.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "type": "commonjs"
+}
