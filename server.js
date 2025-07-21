@@ -10,7 +10,7 @@ const apiRoutes = require('./routes/api');
 const notificationRoutes = require('./routes/notifications');
 const { getDb } = require('./db');
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Import notification scheduler
 const { initScheduler } = require('./services/notification/debugScheduler');
