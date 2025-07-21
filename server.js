@@ -144,13 +144,13 @@ app.use((err, req, res, next) => {
 // Start server
 async function startServer() {
   return new Promise((resolve) => {
-    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
-    const server = app.listen(PORT, host, () => {
-      console.log(`🚀 Server running on http://${host}:${PORT}`);
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
       resolve(server);
     });
   });
 }
+
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
