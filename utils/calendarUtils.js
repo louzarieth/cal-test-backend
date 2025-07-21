@@ -111,6 +111,9 @@ async function saveEvents(events) {
     
     for (const event of events) {
       try {
+        // First, check if this is a new event (by checking if the event_id exists)
+        const existingEvent = await getRows('SELECT 1 FROM events WHERE event_id = ?', [event.id]);
+        
         await runQuery(
           `INSERT INTO events (
             event_id, title, description, start_time, end_time, event_type, created_at, updated_at, html_link
@@ -136,6 +139,44 @@ async function saveEvents(events) {
             event.htmlLink || ''
           ]
         );
+        
+        // If this is a new event, check if we need to auto-enable its type for users
+        if (!existingEvent || existingEvent.length === 0) {
+          const eventType = event.eventType || 'default';
+          console.log(`🔔 New event type detected: ${eventType}, checking for users with notify_new_events enabled`);
+          
+          try {
+            // Find all users who want to be notified about new events
+            const usersToEnable = await getRows(
+              `SELECT id FROM user_preferences WHERE notify_new_events = 1`
+            );
+            
+            if (usersToEnable && usersToEnable.length > 0) {
+              console.log(`✅ Found ${usersToEnable.length} users to enable for new event type: ${eventType}`);
+              
+              // Enable this event type for each user
+              for (const user of usersToEnable) {
+                try {
+                  await runQuery(
+                    `INSERT OR REPLACE INTO user_event_preferences 
+                     (user_id, event_type, is_enabled) 
+                     VALUES (?, ?, 1)`,
+                    [user.id, eventType]
+                  );
+                } catch (err) {
+                  console.error(`❌ Error enabling event type ${eventType} for user ${user.id}:`, err);
+                }
+              }
+              
+              console.log(`✅ Successfully enabled ${eventType} for ${usersToEnable.length} users`);
+            } else {
+              console.log('ℹ️ No users with notify_new_events enabled found');
+            }
+          } catch (err) {
+            console.error('❌ Error processing new event type auto-enable:', err);
+          }
+        }
+        
         savedCount++;
       } catch (error) {
         console.error(`Error saving event ${event.id}:`, error);

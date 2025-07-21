@@ -476,17 +476,27 @@ const scheduleNextEvent = async () => {
       });
       
       console.log(`✅ [Scheduler] Found ${usersWithEventType.length} users who enabled event type '${eventType}'`);
-      if (usersWithEventType.length > 0) {
-        usersWithEventType.forEach(u => {
-          console.log(`   - ${u.email} | is_enabled=${u.is_enabled !== undefined && u.is_enabled !== null ? u.is_enabled : 'null'}`);
-        });
+      
+      // If no users have this event type enabled, return early
+      if (usersWithEventType.length === 0) {
+        console.log('ℹ️ [Scheduler] No users have this event type enabled, waiting for next scheduled check');
+        return false;
       }
+      
+      // Log the users who have this event type enabled
+      usersWithEventType.forEach(u => {
+        console.log(`   - ${u.email} | is_enabled=${u.is_enabled !== undefined && u.is_enabled !== null ? u.is_enabled : 'null'}`);
+      });
       
       // Step 2 (EMAIL): Filter users who have email notifications enabled
       const usersWithEmailEnabled = usersWithEventType.filter(user => user.notify_email === 1);
       console.log(`\n🔍 [Scheduler] Step 2 (EMAIL): Filtering for users with email notifications enabled`);
       console.log(`✅ [Scheduler] ${usersWithEmailEnabled.length} of ${usersWithEventType.length} users have email notifications enabled`);
-      if (usersWithEmailEnabled.length > 0) {
+      
+      // Skip if no users have email notifications enabled
+      if (usersWithEmailEnabled.length === 0) {
+        console.log('ℹ️ [Scheduler] No users have email notifications enabled, skipping email notifications');
+      } else {
         console.log('   - ' + usersWithEmailEnabled.map(u => u.email).join('\n   - '));
       }
 
