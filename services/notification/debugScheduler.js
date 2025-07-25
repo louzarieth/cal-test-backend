@@ -58,7 +58,7 @@ const sendBrowserNotification = async (user, event, timeBefore) => {
       body: `${event.title} starts in ${timeBefore}`,
       icon: '/icon-192x192.png',
       data: {
-        url: `/event/${event.id}`
+        url: `https://monadpulse.vercel.app/`
       }
     });
 
