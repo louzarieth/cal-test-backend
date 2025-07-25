@@ -73,7 +73,7 @@ const eventNotificationTemplate = (event, timeBefore, user) => {
             </p>
             
             <div style="margin-top: 25px; text-align: center;">
-              <a href="https://monadpulse.vercel.com" style="display: inline-block; padding: 12px 24px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; margin: 20px 0;">View Event</a>
+              <a href="https://monadpulse.vercel.app" style="display: inline-block; padding: 12px 24px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; margin: 20px 0;">View Event</a>
             </div>
           </div>
           
@@ -83,11 +83,11 @@ const eventNotificationTemplate = (event, timeBefore, user) => {
               <strong>${event.title || 'this type of event'}</strong>.
             </p>
             <p style="margin: 5px 0 0 0;">
-              <a href="https://monadpulse.vercel.com" style="color: #1a73e8; text-decoration: none;">
+              <a href="https://monadpulse.vercel.app" style="color: #1a73e8; text-decoration: none;">
                 Manage notification preferences
               </a>
               <span style="margin: 0 5px;">•</span>
-              <a href="https://monadpulse.vercel.com" style="color: #5f6368; text-decoration: none;">
+              <a href="https://monadpulse.vercel.app" style="color: #5f6368; text-decoration: none;">
                 Unsubscribe
               </a>
             </p>
