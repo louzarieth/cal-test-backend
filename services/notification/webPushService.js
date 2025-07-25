@@ -61,7 +61,7 @@ const sendEventBrowserNotifications = async (users, event, timeBefore) => {
     icon: '/icons/calendar-192x192.png',
     badge: '/icons/calendar-192x192.png',
     data: {
-      url: `/event/${event.id}`,
+      url: ``,
       eventId: event.id,
       timestamp: Date.now()
     },

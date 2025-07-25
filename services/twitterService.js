@@ -8,6 +8,7 @@ const { format, addMinutes, isAfter } = require('date-fns');
 class TwitterService {
   constructor() {
     this.client = null;
+    this.isProcessing = false;  // Lock to prevent concurrent processing
     this.initialize();
   }
 
@@ -335,6 +336,13 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
                 tweetResult = await this.postTweet(tweetText);
               }
               
+              // Mark reminder as sent in database
+              await db.run(`
+                INSERT OR IGNORE INTO event_reminders 
+                (event_id, reminder_minutes, sent_at)
+                VALUES (?, ?, ?)
+              `, [event.id, minutes, new Date().toISOString()]);
+              
               // Log success
               console.log(`✅ Posted ${minutes}-min reminder for: ${event.title} (${event.id})`);
               results.posted++;
@@ -347,7 +355,8 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
                 timestamp: new Date().toISOString()
               });
               
-              // No longer tracking sent reminders in the database
+              // Add a small delay between tweets to avoid rate limiting
+              await new Promise(resolve => setTimeout(resolve, 500));
               
             } catch (error) {
               console.error(`❌ Failed to post ${minutes}-min reminder for event ${event.id}:`, error.message);
@@ -376,6 +385,8 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
           console.error(`Error processing ${minutes}-minute reminders:`, batchError);
           results.errors++;
           results.success = false;
+          // Add delay before next batch
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       
@@ -400,7 +411,15 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
    * @private
    */
   async _scheduleNextReminder() {
+    // Prevent concurrent execution
+    if (this.isProcessing) {
+      console.log('Already processing reminders, skipping this check');
+      return;
+    }
+
     try {
+      this.isProcessing = true;
+      
       // Clear any existing timeout
       if (this.reminderTimeout) {
         clearTimeout(this.reminderTimeout);
@@ -412,25 +431,21 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
       
       if (!nextEvent) {
         console.log('⏭️  No upcoming events found. Will check again in 1 hour.');
-        // Check again in 1 hour if no events found
         this.reminderTimeout = setTimeout(() => this._scheduleNextReminder(), 60 * 60 * 1000);
         return;
       }
 
       const now = new Date();
       const eventTime = new Date(nextEvent.start_time);
-      const reminderTime = new Date(eventTime.getTime() - (10 * 60 * 1000)); // 10 minutes before
-      
+      const reminderTime = new Date(eventTime.getTime() - (10 * 60 * 1000));
       const timeUntilReminder = reminderTime - now;
 
       if (timeUntilReminder <= 0) {
-        // If we're already past the reminder time, post it now
         console.log(`⏰ Posting immediate reminder for event: ${nextEvent.title}`);
         await this.checkAndPostReminders([10]);
-        // Schedule the next reminder immediately
-        process.nextTick(() => this._scheduleNextReminder());
+        // Add a small delay before next check
+        await new Promise(resolve => setTimeout(resolve, 1000));
       } else {
-        // Schedule the reminder for the right time
         console.log(`⏰ Next reminder scheduled for ${reminderTime.toISOString()} (${nextEvent.title})`);
         this.reminderTimeout = setTimeout(async () => {
           try {
@@ -438,16 +453,23 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
           } catch (error) {
             console.error('Error posting reminder:', error);
           } finally {
-            // Schedule the next reminder after this one is done
+            // Add a small delay before next check
+            await new Promise(resolve => setTimeout(resolve, 1000));
             this._scheduleNextReminder();
           }
         }, timeUntilReminder);
+        return; // Exit after setting timeout
       }
     } catch (error) {
-      console.error('❌ Error scheduling next reminder:', error);
-      // Retry after a delay if there was an error
-      setTimeout(() => this._scheduleNextReminder(), 5 * 60 * 1000);
+      console.error('❌ Error in _scheduleNextReminder:', error);
+      // Add delay before retry
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    } finally {
+      this.isProcessing = false;
     }
+    
+    // Schedule next check with a small delay
+    this.reminderTimeout = setTimeout(() => this._scheduleNextReminder(), 1000);
   }
 
   /**
