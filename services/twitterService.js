@@ -213,17 +213,20 @@ class TwitterService {
       const endTime = addMinutes(now, minutesAhead);
       const reminderTime = addMinutes(now, reminderMinutes);
       
-      // Get events that start within the reminder window
+      // Get events that start within the reminder window and haven't had reminders sent yet
       const events = await getRows(
-        `SELECT e.* 
+        `SELECT DISTINCT e.* 
          FROM events e
-         LEFT JOIN event_reminders er ON e.id = er.event_id AND er.reminder_minutes = ?
          WHERE e.start_time >= ? 
            AND e.start_time <= ?
            AND e.is_deleted = 0
-           AND (er.id IS NULL OR er.sent_at IS NULL)
+           AND NOT EXISTS (
+             SELECT 1 FROM event_reminders er 
+             WHERE er.event_id = e.id 
+             AND er.reminder_minutes = ?
+           )
          ORDER BY e.start_time ASC`,
-        [reminderMinutes, now.toISOString(), endTime.toISOString()]
+        [now.toISOString(), endTime.toISOString(), reminderMinutes]
       );
       
       console.log(`Found ${events.length} events starting in the next ${minutesAhead} minutes`);
@@ -293,6 +296,9 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
       details: []
     };
 
+    // Track processed events in this batch to avoid duplicates
+    const processedEvents = new Set();
+
     try {
       // Process each reminder time
       for (const minutes of reminderMinutes) {
@@ -314,7 +320,28 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
               continue;
             }
             
+            // Skip if we've already processed this event in this batch
+            const eventKey = `${event.id}_${minutes}`;
+            if (processedEvents.has(eventKey)) {
+              console.log(`Skipping already processed event: ${event.id} (${minutes}-min reminder)`);
+              continue;
+            }
+            
             try {
+              // First, mark the event as processed in this batch
+              processedEvents.add(eventKey);
+              
+              // Check if we've already sent this reminder
+              const existingReminder = await getRow(
+                'SELECT * FROM event_reminders WHERE event_id = ? AND reminder_minutes = ?',
+                [event.id, minutes]
+              );
+              
+              if (existingReminder) {
+                console.log(`Skipping already sent reminder for event ${event.id} (${minutes}-min reminder)`);
+                continue;
+              }
+              
               // Format the tweet with the specific reminder time
               const tweetText = this.formatEventTweet(event, minutes);
               
@@ -336,12 +363,19 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
                 tweetResult = await this.postTweet(tweetText);
               }
               
-              // Mark reminder as sent in database
-              await db.run(`
-                INSERT OR IGNORE INTO event_reminders 
-                (event_id, reminder_minutes, sent_at)
-                VALUES (?, ?, ?)
-              `, [event.id, minutes, new Date().toISOString()]);
+              // Mark reminder as sent in database in a transaction
+              await db.run('BEGIN TRANSACTION');
+              try {
+                await db.run(
+                  'INSERT INTO event_reminders (event_id, reminder_minutes, sent_at) VALUES (?, ?, ?)',
+                  [event.id, minutes, new Date().toISOString()]
+                );
+                await db.run('COMMIT');
+                console.log(`✅ Marked reminder as sent for event ${event.id} (${minutes}-min)`);
+              } catch (dbError) {
+                await db.run('ROLLBACK');
+                throw dbError;
+              }
               
               // Log success
               console.log(`✅ Posted ${minutes}-min reminder for: ${event.title} (${event.id})`);
@@ -356,7 +390,7 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
               });
               
               // Add a small delay between tweets to avoid rate limiting
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise(resolve => setTimeout(resolve, 1000));
               
             } catch (error) {
               console.error(`❌ Failed to post ${minutes}-min reminder for event ${event.id}:`, error.message);
@@ -371,13 +405,19 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
                 timestamp: new Date().toISOString()
               });
               
-              // Implement exponential backoff for rate limits
+              // If rate limited, wait for the rate limit to reset
               if (error.rateLimit) {
                 const resetTime = new Date(error.rateLimit.reset * 1000);
-                const waitTime = resetTime - new Date() + 5000; // Add 5s buffer
-                console.warn(`Rate limited. Waiting until ${resetTime} (${Math.ceil(waitTime/1000)}s)`);
+                const waitTime = Math.max(0, resetTime - new Date()) + 5000; // Add 5s buffer
+                console.warn(`Rate limited. Waiting ${Math.ceil(waitTime/1000)}s until ${resetTime}`);
                 await new Promise(resolve => setTimeout(resolve, waitTime));
+                
+                // After waiting, try to continue with the next event
+                continue;
               }
+              
+              // For other errors, add a small delay before continuing
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           }
           
@@ -386,7 +426,7 @@ Get ready for the upcoming "${event.title}" at ${localFormattedTime}.
           results.errors++;
           results.success = false;
           // Add delay before next batch
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
       
