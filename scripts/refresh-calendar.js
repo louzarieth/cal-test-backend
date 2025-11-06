@@ -3,7 +3,7 @@ const { addDays, startOfDay, endOfDay, format } = require('date-fns');
 const https = require('https');
 
 // Google Calendar API configuration
-const GOOGLE_API_KEY = 'AIzaSyCEpcJdO5FPDoNT49qaaqVXq9INsphQSQE';
+const GOOGLE_API_KEY = 'xxxxxxxxxxxxxxxxxxx';
 const CALENDAR_ID = 'df80381b3317c2ce323ec7376a93dd57fbaa8e733452e576b56ace1656198c31@group.calendar.google.com';
 
 // Helper function to make HTTPS requests
